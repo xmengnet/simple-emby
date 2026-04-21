@@ -213,9 +213,9 @@ type EpisodesResponse struct {
 
 // GetNextEpisode finds the next episode in the same series/season after currentIndex.
 // Returns nil, nil if there is no next episode.
-func (c *Client) GetNextEpisode(seasonId string, currentIndex int) (*EpisodeItem, error) {
-	apiURL := fmt.Sprintf("%s/emby/Shows/%s/Episodes?UserId=%s&api_key=%s&Fields=MediaSources",
-		c.BaseURL, seasonId, c.UserId, c.APIKey)
+func (c *Client) GetNextEpisode(seriesId, seasonId string, currentIndex int) (*EpisodeItem, error) {
+	apiURL := fmt.Sprintf("%s/emby/Shows/%s/Episodes?SeasonId=%s&UserId=%s&api_key=%s&Fields=MediaSources",
+		c.BaseURL, seriesId, seasonId, c.UserId, c.APIKey)
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {

@@ -227,7 +227,7 @@ func (s *Server) tryPlayNextEpisode() {
 	item := s.currentItem
 	s.mu.Unlock()
 
-	if client == nil || item == nil || item.SeasonId == "" {
+	if client == nil || item == nil || item.SeriesId == "" {
 		log.Println("No episode context available for auto-next, stopping.")
 		if s.onStatusChange != nil {
 			s.onStatusChange(false, "")
@@ -237,7 +237,7 @@ func (s *Server) tryPlayNextEpisode() {
 
 	log.Printf("Looking for next episode after S%02dE%02d...", item.ParentIndexNumber, item.IndexNumber)
 
-	nextEp, err := client.GetNextEpisode(item.SeasonId, item.IndexNumber)
+	nextEp, err := client.GetNextEpisode(item.SeriesId, item.SeasonId, item.IndexNumber)
 	if err != nil {
 		log.Printf("Error fetching next episode: %v", err)
 		if s.onStatusChange != nil {

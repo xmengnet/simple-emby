@@ -4,3 +4,4 @@ test/*/*.ass
 packaging/archlinux/src
 packaging/archlinux/simple-emby
 packaging/archlinux/pkg
+*.pkg.tar.zst

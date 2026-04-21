@@ -50,6 +50,9 @@ func (m *Manager) Play(streamURL string, title string, startPositionSec float64,
 
 	// If we already have a process and IPC, try loading the new file
 	if m.cmd != nil && m.ipcConn != nil {
+		// Reset the start property so it doesn't inherit the previous file's start position
+		_, _ = m.ipcConn.Call("set_property", "options/start", fmt.Sprintf("%f", startPositionSec))
+
 		_, err := m.ipcConn.Call("loadfile", streamURL)
 		if err == nil {
 			log.Println("Successfully loaded new stream into existing mpv instance.")
@@ -58,17 +61,6 @@ func (m *Manager) Play(streamURL string, title string, startPositionSec float64,
 			}
 			if subFile != "" {
 				_, _ = m.ipcConn.Call("sub-add", subFile)
-			}
-			if startPositionSec > 0 {
-				// Wait briefly for file to load, then seek
-				go func() {
-					time.Sleep(1 * time.Second)
-					m.mu.Lock()
-					defer m.mu.Unlock()
-					if m.ipcConn != nil {
-						_, _ = m.ipcConn.Call("set_property", "time-pos", startPositionSec)
-					}
-				}()
 			}
 			return nil
 		}
