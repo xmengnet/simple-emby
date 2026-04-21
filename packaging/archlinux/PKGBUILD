@@ -1,0 +1,37 @@
+# Maintainer: liyp <liyp@liyp.net>
+pkgname=simple-emby-git
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="A simple Emby-mpv middleware with Bilibili danmaku support"
+arch=('x86_64' 'aarch64')
+url="https://github.com/xmengnet/simple-emby"
+license=('MIT')
+depends=('mpv' 'libayatana-appindicator' 'gtk3')
+makedepends=('go')
+provides=('simple-emby')
+conflicts=('simple-emby')
+source=("git+${url}.git"
+        "simple-emby.desktop")
+sha256sums=('SKIP'
+            'SKIP')
+
+build() {
+  cd "${srcdir}/${pkgname%-git}"
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export CGO_LDFLAGS="${LDFLAGS}"
+  export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
+  
+  go build -o simple-emby ./cmd/simple-emby
+}
+
+package() {
+  cd "${srcdir}/${pkgname%-git}"
+  
+  # Install binary
+  install -Dm755 simple-emby "${pkgdir}/usr/bin/simple-emby"
+  
+  # Install desktop entry
+  install -Dm644 "${srcdir}/simple-emby.desktop" "${pkgdir}/usr/share/applications/simple-emby.desktop"
+}

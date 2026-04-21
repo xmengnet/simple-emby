@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Simple Emby
+Comment=Emby-mpv Middleware with Danmaku support
+Exec=simple-emby
+Icon=multimedia-video-player
+Terminal=false
+Categories=AudioVideo;Video;Player;
+Keywords=Emby;mpv;Danmaku;
+StartupNotify=false

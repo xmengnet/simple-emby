@@ -1,3 +1,6 @@
-simple-emby
+/simple-emby
 .vscode
 test/*/*.ass
+packaging/archlinux/src
+packaging/archlinux/simple-emby
+packaging/archlinux/pkg
