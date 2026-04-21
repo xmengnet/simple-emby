@@ -42,7 +42,7 @@ func (m *Manager) SetMpvPath(path string) {
 	m.mpvPath = path
 }
 
-func (m *Manager) Play(streamURL string, title string, startPositionSec float64, cb EventCallback) error {
+func (m *Manager) Play(streamURL string, title string, startPositionSec float64, subFile string, cb EventCallback) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -55,6 +55,9 @@ func (m *Manager) Play(streamURL string, title string, startPositionSec float64,
 			log.Println("Successfully loaded new stream into existing mpv instance.")
 			if title != "" {
 				_, _ = m.ipcConn.Call("set_property", "force-media-title", title)
+			}
+			if subFile != "" {
+				_, _ = m.ipcConn.Call("sub-add", subFile)
 			}
 			if startPositionSec > 0 {
 				// Wait briefly for file to load, then seek
@@ -89,6 +92,9 @@ func (m *Manager) Play(streamURL string, title string, startPositionSec float64,
 
 	if title != "" {
 		args = append(args, "--force-media-title="+title)
+	}
+	if subFile != "" {
+		args = append(args, "--sub-file="+subFile)
 	}
 	if startPositionSec > 0 {
 		args = append(args, fmt.Sprintf("--start=%f", startPositionSec))

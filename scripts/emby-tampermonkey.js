@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Emby mpv Middleware
-// @namespace    https://github.com/liyp/simple-emby
+// @namespace    https://github.com/xmengnet/simple-emby
 // @version      2.0
 // @description  Emby 调用本地 mpv 播放器
-// @author       liyp
+// @author       xmengnet
 // @match        *://*/web/index.html*
 // @match        *://*/*/web/index.html*
 // @match        *://*/web/

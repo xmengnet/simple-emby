@@ -8,15 +8,17 @@ import (
 )
 
 type Config struct {
-	BindAddr string `json:"bind_addr"`
-	MpvPath  string `json:"mpv_path"`
-	MpvArgs  string `json:"mpv_args"` // User can add custom args like --fs
+	BindAddr      string `json:"bind_addr"`
+	MpvPath       string `json:"mpv_path"`
+	MpvArgs       string `json:"mpv_args"` // User can add custom args like --fs
+	EnableDanmaku bool   `json:"enable_danmaku"`
 }
 
 var DefaultConfig = Config{
-	BindAddr: "127.0.0.1:19999",
-	MpvPath:  "mpv",
-	MpvArgs:  "--fs", // Default to fullscreen
+	BindAddr:      "127.0.0.1:19999",
+	MpvPath:       "mpv",
+	MpvArgs:       "--fs", // Default to fullscreen
+	EnableDanmaku: true,
 }
 
 func GetConfigPath() (string, error) {
@@ -33,6 +35,16 @@ func GetLogPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(configDir, "emby-mpv-tray", "app.log"), nil
+}
+
+func GetDanmakuPath() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(configDir, "emby-mpv-tray", "danmaku")
+	_ = os.MkdirAll(dir, 0755)
+	return dir, nil
 }
 
 func LoadConfig() (*Config, error) {

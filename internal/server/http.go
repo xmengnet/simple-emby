@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"sync"
 
-	"github.com/liyp/simple-emby/internal/config"
-	"github.com/liyp/simple-emby/internal/emby"
-	"github.com/liyp/simple-emby/internal/mpv"
+	"github.com/xmengnet/simple-emby/internal/config"
+	"github.com/xmengnet/simple-emby/internal/danmaku"
+	"github.com/xmengnet/simple-emby/internal/emby"
+	"github.com/xmengnet/simple-emby/internal/mpv"
 )
 
 // StatusChangeFunc is called when playback status changes (playing bool, title string)
@@ -150,8 +152,40 @@ func (s *Server) startPlayback(client *emby.Client, itemId string, mediaTitle st
 		s.onStatusChange(true, mediaTitle)
 	}
 
-	// 6. Launch mpv with event callbacks
-	err = s.mpvManager.Play(streamURL, mediaTitle, startPositionSec, func(event string, data interface{}) {
+	// 6. Try to match and download danmaku
+	var subFile string
+	if s.cfg.EnableDanmaku {
+		danmakuDir, _ := config.GetDanmakuPath()
+		provider := danmaku.NewBiliProvider()
+
+		// Create search key: "SeriesName 第IndexNumber集"
+		searchKey := fmt.Sprintf("%s 第%d集", itemInfo.SeriesName, itemInfo.IndexNumber)
+		if itemInfo.IndexNumber == 0 {
+			searchKey = itemInfo.Name
+		}
+
+		log.Printf("Searching danmaku for: %s", searchKey)
+		bvid, title, err := provider.Search(searchKey)
+		if err == nil {
+			if cid, err := provider.GetCid(bvid); err == nil {
+				if comments, err := provider.FetchDanmaku(cid); err == nil {
+					subPath := filepath.Join(danmakuDir, fmt.Sprintf("%s.ass", itemId))
+					dm := &danmaku.Danmaku{Title: title, Comments: comments}
+					if err := danmaku.RenderToASS(dm, subPath); err == nil {
+						subFile = subPath
+						log.Printf("Successfully matched danmaku: %s -> %s", title, subPath)
+					}
+				}
+			}
+		} else {
+			log.Printf("No danmaku matched for %s: %v", searchKey, err)
+		}
+	} else {
+		log.Println("Danmaku is disabled in config.")
+	}
+
+	// 7. Launch mpv with event callbacks
+	err = s.mpvManager.Play(streamURL, mediaTitle, startPositionSec, subFile, func(event string, data interface{}) {
 		switch event {
 		case "time-pos":
 			if pos, ok := data.(float64); ok {

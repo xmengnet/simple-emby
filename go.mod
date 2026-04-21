@@ -1,4 +1,4 @@
-module github.com/liyp/simple-emby
+module github.com/xmengnet/simple-emby
 
 go 1.26.2
 
