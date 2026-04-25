@@ -28,6 +28,16 @@ func NewClient(baseURL, apiKey, userId string) *Client {
 	}
 }
 
+func (c *Client) setAuthHeaders(req *http.Request) {
+	req.Header.Set("X-Emby-Authorization", fmt.Sprintf(
+		`MediaBrowser Client="simple-emby", Device="Linux", DeviceId="simple-emby-linux", Version="1.0", Token="%s"`,
+		c.APIKey,
+	))
+	req.Header.Set("X-Emby-Token", c.APIKey)
+	// 伪装浏览器 UA 避免被防火墙或 WAF 直接 403 拦截
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+}
+
 // MediaSourceInfo represents a media source from Emby
 type MediaSourceInfo struct {
 	Id                   string `json:"Id"`
@@ -44,10 +54,13 @@ type PlaybackInfoResponse struct {
 func (c *Client) GetPlaybackInfo(itemId string) (*PlaybackInfoResponse, error) {
 	apiURL := fmt.Sprintf("%s/emby/Items/%s/PlaybackInfo?UserId=%s&api_key=%s", c.BaseURL, itemId, c.UserId, c.APIKey)
 
-	req, err := http.NewRequest("GET", apiURL, nil)
+	// Emby 4.9+ 和一些反代要求该接口必须是 POST，并且有些需要 JSON body
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer([]byte("{}")))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/json")
+	c.setAuthHeaders(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -103,16 +116,18 @@ type ItemInfo struct {
 	ParentIndexNumber int          `json:"ParentIndexNumber"` // season number
 	RunTimeTicks      int64        `json:"RunTimeTicks"`
 	UserData          ItemUserData `json:"UserData"`
+	Path              string       `json:"Path"`
 }
 
-// GetItemInfo fetches item metadata including resume position
+// GetItemInfo fetches item metadata including resume position and file path
 func (c *Client) GetItemInfo(itemId string) (*ItemInfo, error) {
-	apiURL := fmt.Sprintf("%s/emby/Users/%s/Items/%s?api_key=%s", c.BaseURL, c.UserId, itemId, c.APIKey)
+	apiURL := fmt.Sprintf("%s/emby/Users/%s/Items/%s?api_key=%s&Fields=Path", c.BaseURL, c.UserId, itemId, c.APIKey)
 
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, err
 	}
+	c.setAuthHeaders(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -178,11 +193,7 @@ func (c *Client) sendProgressEvent(endpoint string, info PlaybackProgressInfo) e
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	// Use proper Emby auth header instead of query param to avoid rate limit issues
-	req.Header.Set("X-Emby-Authorization", fmt.Sprintf(
-		`MediaBrowser Client="simple-emby", Device="Linux", DeviceId="simple-emby-linux", Version="1.0", Token="%s"`,
-		c.APIKey,
-	))
+	c.setAuthHeaders(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -221,10 +232,7 @@ func (c *Client) GetNextEpisode(seriesId, seasonId string, currentIndex int) (*E
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-Emby-Authorization", fmt.Sprintf(
-		`MediaBrowser Client="simple-emby", Device="Linux", DeviceId="simple-emby-linux", Version="1.0", Token="%s"`,
-		c.APIKey,
-	))
+	c.setAuthHeaders(req)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

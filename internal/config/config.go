@@ -8,10 +8,12 @@ import (
 )
 
 type Config struct {
-	BindAddr      string `json:"bind_addr"`
-	MpvPath       string `json:"mpv_path"`
-	MpvArgs       string `json:"mpv_args"` // User can add custom args like --fs
-	EnableDanmaku bool   `json:"enable_danmaku"`
+	BindAddr        string `json:"bind_addr"`
+	MpvPath         string `json:"mpv_path"`
+	MpvArgs         string `json:"mpv_args"` // User can add custom args like --fs
+	EnableDanmaku   bool   `json:"enable_danmaku"`
+	DandanplayAPI   string `json:"dandanplay_api"`
+	DandanplayToken string `json:"dandanplay_token"`
 }
 
 var DefaultConfig = Config{
@@ -19,6 +21,7 @@ var DefaultConfig = Config{
 	MpvPath:       "mpv",
 	MpvArgs:       "--fs", // Default to fullscreen
 	EnableDanmaku: true,
+	DandanplayAPI: "https://api.dandanplay.net",
 }
 
 func GetConfigPath() (string, error) {
@@ -75,6 +78,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.MpvPath == "" {
 		cfg.MpvPath = DefaultConfig.MpvPath
+	}
+	if cfg.DandanplayAPI == "" {
+		cfg.DandanplayAPI = DefaultConfig.DandanplayAPI
 	}
 
 	return &cfg, nil
