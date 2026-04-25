@@ -152,70 +152,8 @@ func (s *Server) startPlayback(client *emby.Client, itemId string, mediaTitle st
 		s.onStatusChange(true, mediaTitle)
 	}
 
-	// 6. Try to match and download danmaku
-	var subFile string
-	if s.cfg.EnableDanmaku {
-		danmakuDir, _ := config.GetDanmakuPath()
-		provider := danmaku.NewDandanplayProvider(s.cfg.DandanplayAPI, s.cfg.DandanplayToken)
-
-		var episodeId int64
-		var title string
-		var err error
-
-		// Strategy 1: Real filename
-		if itemInfo.Path != "" {
-			fileName := filepath.Base(itemInfo.Path)
-			log.Printf("Strategy 1: Matching danmaku using real filename: %s", fileName)
-			episodeId, title, err = provider.MatchEpisode(fileName)
-		} else {
-			err = fmt.Errorf("no path available")
-		}
-
-		// Strategy 2: Fake standard filename
-		if err != nil {
-			animeName := itemInfo.SeriesName
-			if animeName == "" {
-				animeName = itemInfo.Name
-			}
-			fakeName := fmt.Sprintf("%s S%02dE%02d.mp4", animeName, itemInfo.ParentIndexNumber, itemInfo.IndexNumber)
-			log.Printf("Strategy 2: Matching danmaku using standard filename: %s", fakeName)
-			episodeId, title, err = provider.MatchEpisode(fakeName)
-		}
-
-		// Strategy 3: Fallback to Search
-		if err != nil {
-			animeName := itemInfo.SeriesName
-			if animeName == "" {
-				animeName = itemInfo.Name
-			}
-			log.Printf("Strategy 3: Searching danmaku for: %s ep %d", animeName, itemInfo.IndexNumber)
-			episodeId, title, err = provider.SearchEpisode(animeName, itemInfo.IndexNumber)
-		}
-
-		if err == nil {
-			if comments, fetchErr := provider.FetchDanmaku(episodeId); fetchErr == nil {
-				subPath := filepath.Join(danmakuDir, fmt.Sprintf("%s.ass", itemId))
-				dm := &danmaku.Danmaku{Title: title, Comments: comments}
-				if err := danmaku.RenderToASS(dm, subPath); err == nil {
-					subFile = subPath
-					log.Printf("Successfully matched danmaku: %s (%d comments) -> %s", title, len(comments), subPath)
-				}
-			} else {
-				log.Printf("Failed to fetch danmaku for episodeId %d: %v", episodeId, fetchErr)
-			}
-		} else {
-			animeName := itemInfo.SeriesName
-			if animeName == "" {
-				animeName = itemInfo.Name
-			}
-			log.Printf("All danmaku match strategies failed for %s ep %d: %v", animeName, itemInfo.IndexNumber, err)
-		}
-	} else {
-		log.Println("Danmaku is disabled in config.")
-	}
-
-	// 7. Launch mpv with event callbacks
-	err = s.mpvManager.Play(streamURL, mediaTitle, startPositionSec, subFile, func(event string, data interface{}) {
+	// 6. Launch mpv with event callbacks FIRST
+	err = s.mpvManager.Play(streamURL, mediaTitle, startPositionSec, "", func(event string, data interface{}) {
 		switch event {
 		case "time-pos":
 			if pos, ok := data.(float64); ok {
@@ -247,6 +185,84 @@ func (s *Server) startPlayback(client *emby.Client, itemId string, mediaTitle st
 
 	// 7. Notify Emby that playback has started (after mpv is up)
 	s.sessionMgr.StartSession(itemId, mediaSourceId)
+
+	// 8. Try to match and download danmaku asynchronously
+	if s.cfg.EnableDanmaku {
+		go func(targetItemId string, item *emby.ItemInfo) {
+			danmakuDir, _ := config.GetDanmakuPath()
+			provider := danmaku.NewDandanplayProvider(s.cfg.DandanplayAPI, s.cfg.DandanplayToken)
+
+			var episodeId int64
+			var title string
+			var matchErr error
+
+			// Strategy 1: Real filename
+			if item.Path != "" {
+				fileName := filepath.Base(item.Path)
+				log.Printf("Async Danmaku Strategy 1: Matching using real filename: %s", fileName)
+				episodeId, title, matchErr = provider.MatchEpisode(fileName)
+			} else {
+				matchErr = fmt.Errorf("no path available")
+			}
+
+			// Strategy 2: Fake standard filename
+			if matchErr != nil {
+				animeName := item.SeriesName
+				if animeName == "" {
+					animeName = item.Name
+				}
+				fakeName := fmt.Sprintf("%s S%02dE%02d.mp4", animeName, item.ParentIndexNumber, item.IndexNumber)
+				log.Printf("Async Danmaku Strategy 2: Matching using standard filename: %s", fakeName)
+				episodeId, title, matchErr = provider.MatchEpisode(fakeName)
+			}
+
+			// Strategy 3: Fallback to Search
+			if matchErr != nil {
+				animeName := item.SeriesName
+				if animeName == "" {
+					animeName = item.Name
+				}
+				log.Printf("Async Danmaku Strategy 3: Searching for: %s ep %d", animeName, item.IndexNumber)
+				episodeId, title, matchErr = provider.SearchEpisode(animeName, item.IndexNumber)
+			}
+
+			if matchErr == nil {
+				if comments, fetchErr := provider.FetchDanmaku(episodeId); fetchErr == nil {
+					subPath := filepath.Join(danmakuDir, fmt.Sprintf("%s.ass", targetItemId))
+					dm := &danmaku.Danmaku{Title: title, Comments: comments}
+					if err := danmaku.RenderToASS(dm, subPath); err == nil {
+						log.Printf("Successfully matched async danmaku: %s (%d comments) -> %s", title, len(comments), subPath)
+						
+						// Verify that the user hasn't switched to another episode while downloading
+						s.mu.Lock()
+						currentId := ""
+						if s.currentItem != nil {
+							currentId = s.currentItem.Id
+						}
+						s.mu.Unlock()
+						
+						if currentId == targetItemId {
+							log.Println("Applying async danmaku to running mpv instance.")
+							s.mpvManager.AddSubtitle(subPath)
+						} else {
+							log.Println("Playback context changed during danmaku fetch, discarding.")
+						}
+					}
+				} else {
+					log.Printf("Failed to fetch async danmaku for episodeId %d: %v", episodeId, fetchErr)
+				}
+			} else {
+				animeName := item.SeriesName
+				if animeName == "" {
+					animeName = item.Name
+				}
+				log.Printf("All async danmaku match strategies failed for %s ep %d: %v", animeName, item.IndexNumber, matchErr)
+			}
+		}(itemId, itemInfo)
+	} else {
+		log.Println("Danmaku is disabled in config.")
+	}
+
 	return nil
 }
 

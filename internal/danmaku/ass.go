@@ -19,7 +19,7 @@ Timer: 100.0000
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,36,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1
+Style: Default,Arial,25,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -28,11 +28,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 // 基于 720p 逻辑分辨率的布局常量
 const (
-	resY        = 720  // ASS 逻辑高度
-	resX        = 1280 // ASS 逻辑宽度
-	trackH      = 40   // 轨道高度 (字号36 + 间距4)
-	marginTop   = 33   // 顶部起始 Y
-	marginBot   = 33   // 底部边距
+	resY      = 720  // ASS 逻辑高度
+	resX      = 1280 // ASS 逻辑宽度
+	trackH    = 30   // 轨道高度 (25 + 间距5)
+	marginTop = 33   // 顶部起始 Y
+	marginBot = 33   // 底部边距
 )
 
 // allocTrack 分配一个可用的弹幕轨道。如果全满则返回 -1
@@ -77,6 +77,16 @@ func RenderToASS(dm *Danmaku, path string) error {
 			continue
 		}
 
+		colorTag := ""
+		// 如果不是默认的纯白色 (0xFFFFFF / 16777215) 或者是 0，则加上颜色标签
+		// 注意 ASS 颜色格式是 &HBBGGRR&
+		if c.Color != 16777215 && c.Color != 0 {
+			b := c.Color & 0xFF
+			g := (c.Color >> 8) & 0xFF
+			r := (c.Color >> 16) & 0xFF
+			colorTag = fmt.Sprintf("\\c&H%02X%02X%02X&", b, g, r)
+		}
+
 		var line string
 		switch c.Mode {
 		case ModeTop:
@@ -86,8 +96,8 @@ func RenderToASS(dm *Danmaku, path string) error {
 				continue // 轨道满了，丢弃
 			}
 			yPos := marginTop + trackIdx*trackH
-			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{\\pos(%d,%d)}%s\n",
-				startStr, endStr, resX/2, yPos, content)
+			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{%s\\pos(%d,%d)}%s\n",
+				startStr, endStr, colorTag, resX/2, yPos, content)
 
 		case ModeBottom:
 			endStr = FormatASSTime(c.Time + 4.0)
@@ -96,8 +106,8 @@ func RenderToASS(dm *Danmaku, path string) error {
 				continue
 			}
 			yPos := resY - marginBot - trackIdx*trackH
-			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{\\pos(%d,%d)}%s\n",
-				startStr, endStr, resX/2, yPos, content)
+			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{%s\\pos(%d,%d)}%s\n",
+				startStr, endStr, colorTag, resX/2, yPos, content)
 
 		default: // ModeRolling
 			// 等前一条弹幕基本离开右边缘后再放行
@@ -111,8 +121,8 @@ func RenderToASS(dm *Danmaku, path string) error {
 			}
 			yPos := marginTop + trackIdx*trackH
 			// 起点 resX，终点 -200（比文字宽度略左，更快离屏）
-			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{\\move(%d,%d,-200,%d)}%s\n",
-				startStr, endStr, resX, yPos, yPos, content)
+			line = fmt.Sprintf("Dialogue: 0,%s,%s,Default,,0,0,0,,{%s\\move(%d,%d,-200,%d)}%s\n",
+				startStr, endStr, colorTag, resX, yPos, yPos, content)
 		}
 
 		f.WriteString(line)

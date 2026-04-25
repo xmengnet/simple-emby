@@ -42,6 +42,18 @@ func (m *Manager) SetMpvPath(path string) {
 	m.mpvPath = path
 }
 
+// AddSubtitle dynamically loads a subtitle file into the running mpv instance.
+func (m *Manager) AddSubtitle(subFile string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ipcConn != nil {
+		_, err := m.ipcConn.Call("sub-add", subFile)
+		return err
+	}
+	return fmt.Errorf("mpv is not running or IPC not connected")
+}
+
 func (m *Manager) Play(streamURL string, title string, startPositionSec float64, subFile string, cb EventCallback) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -69,6 +81,7 @@ func (m *Manager) Play(streamURL string, title string, startPositionSec float64,
 	}
 
 	// Start new process
+
 	// Base required arguments
 	args := []string{
 		streamURL,
